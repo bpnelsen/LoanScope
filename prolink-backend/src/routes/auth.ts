@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { authService } from '../services/auth.service';
+import { supabaseAnon } from '../config/supabase';
 import { requireAuth } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 
@@ -24,6 +25,10 @@ const refreshSchema = z.object({
   refresh_token: z.string().min(1),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
 router.post('/register', validate(registerSchema), async (req: Request, res: Response) => {
   try {
     const result = await authService.register(req.body);
@@ -41,6 +46,19 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Login failed';
     res.status(401).json({ error: message, code: 'LOGIN_FAILED' });
+  }
+});
+
+router.post('/forgot-password', validate(forgotPasswordSchema), async (req: Request, res: Response) => {
+  try {
+    const { error } = await supabaseAnon.auth.resetPasswordForEmail(req.body.email, {
+      redirectTo: `${req.protocol}://${req.get('host')}/reset-password`,
+    });
+    if (error) throw error;
+    res.json({ message: 'Reset email sent' });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to send reset email';
+    res.status(500).json({ error: message });
   }
 });
 
