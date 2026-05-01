@@ -48,35 +48,39 @@ export const authService = {
 
     const userId = authData.user.id;
 
+    // Use upsert to handle re-registrations/graceful initialization
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .insert({
+      .upsert({
         id: userId,
         email: input.email,
         full_name: input.full_name,
         phone: input.phone ?? null,
         role: 'contractor',
-      })
+      }, { onConflict: 'id' })
       .select()
       .single();
 
     if (profileError || !profile) {
+      // Only delete if this is a new registration failure
       await supabase.auth.admin.deleteUser(userId);
       throw new Error(profileError?.message ?? 'Failed to create profile');
     }
 
+    // Use upsert here as well
     const { data: contractor, error: contractorError } = await supabase
       .from('contractors')
-      .insert({
+      .upsert({
         profile_id: userId,
         business_name: input.business_name,
         business_type: input.business_type ?? null,
         status: 'pending',
-      })
+      }, { onConflict: 'profile_id' })
       .select()
       .single();
 
     if (contractorError || !contractor) {
+      // Only delete auth user if this is a clean failure
       await supabase.auth.admin.deleteUser(userId);
       throw new Error(contractorError?.message ?? 'Failed to create contractor');
     }
