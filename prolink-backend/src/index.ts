@@ -16,17 +16,18 @@ import jobRoutes from './routes/jobs';
 import invoiceRoutes from './routes/invoices';
 import conversationRoutes from './routes/conversations';
 import dashboardRoutes from './routes/dashboard';
+import aiRoutes from './routes/ai';
 
 const app = express();
 
-// ─── Global Middleware ────────────────────────────────────────────────────────
-app.use(helmet());
+// ——— Global Middleware ————————————————————————————————————————————————————————————
 app.use(
   cors({
-    origin: [env.FRONTEND_URL, env.APP_URL],
+    origin: (origin, callback) => callback(null, true),
     credentials: true,
   })
 );
+app.use(helmet());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(
@@ -36,12 +37,20 @@ app.use(
   })
 );
 
-// ─── Health Check ─────────────────────────────────────────────────────────────
+// ——— Root & Health Check ——————————————————————————————————————————————————————————
+app.get('/', (_req, res) => {
+  res.json({ 
+    message: 'Prolink Backend API', 
+    version: '1.0.0', 
+    documentation: 'https://docs.useezly.com' 
+  });
+});
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '1.0.0' });
 });
 
-// ─── API Routes ───────────────────────────────────────────────────────────────
+// ——— API Routes ———————————————————————————————————————————————————————————————————
 const v1 = express.Router();
 
 v1.use('/auth', authRoutes);
@@ -52,14 +61,15 @@ v1.use('/jobs', jobRoutes);
 v1.use('/invoices', invoiceRoutes);
 v1.use('/conversations', conversationRoutes);
 v1.use('/dashboard', dashboardRoutes);
+v1.use('/ai', aiRoutes);
 
 app.use('/api/v1', v1);
 
-// ─── Error Handling ───────────────────────────────────────────────────────────
+// ——— Error Handling ———————————————————————————————————————————————————————————————
 app.use(notFound);
 app.use(errorHandler);
 
-// ─── Start Server ─────────────────────────────────────────────────────────────
+// ——— Start Server —————————————————————————————————————————————————————————————————
 if (require.main === module) {
   app.listen(env.PORT, () => {
     logger.info(`Prolink API running on port ${env.PORT} [${env.NODE_ENV}]`);
