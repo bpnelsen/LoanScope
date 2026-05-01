@@ -75,6 +75,22 @@ describe('POST /api/v1/jobs', () => {
   });
 });
 
+describe('POST /api/v1/jobs/:id/confirm', () => {
+  it('updates job status to review', async () => {
+    auth();
+    (mockSupabase.from as jest.Mock).mockReturnValueOnce(
+      chain({ data: { ...mockJob, status: 'review' }, error: null })
+    );
+
+    const res = await request(app)
+      .post('/api/v1/jobs/job-uuid/confirm')
+      .set('Authorization', TOKEN);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('review');
+  });
+});
+
 describe('GET /api/v1/jobs/:id', () => {
   it('returns 404 for missing job', async () => {
     auth();
