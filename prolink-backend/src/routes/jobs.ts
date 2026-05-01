@@ -56,7 +56,7 @@ const documentSchema = z.object({
   document_type: z.string().optional(),
 });
 
-// ─── Jobs CRUD ────────────────────────────────────────────────────────────────
+// ——— Jobs CRUD ———————————————————————————————————————————————————————————————————
 
 router.get('/', async (req: Request, res: Response) => {
   try {
@@ -79,6 +79,18 @@ router.post('/', validate(jobSchema), async (req: Request, res: Response) => {
     res.status(201).json({ data: job, message: 'Job created' });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create job' });
+  }
+});
+
+// Ported confirm-visit logic 
+router.post('/:id/confirm', async (req: Request, res: Response) => {
+  try {
+    const job = await jobService.update(req.user!.contractor_id!, req.params.id, {
+      status: 'review',
+    });
+    res.json({ data: job, message: 'Job status updated to review' });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to confirm job' });
   }
 });
 
@@ -109,7 +121,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// ─── Milestones ───────────────────────────────────────────────────────────────
+// ——— Milestones ———————————————————————————————————————————————————————————————————
 
 router.get('/:id/milestones', async (req: Request, res: Response) => {
   try {
@@ -152,7 +164,7 @@ router.delete('/:id/milestones/:milestoneId', async (req: Request, res: Response
   }
 });
 
-// ─── Photos ───────────────────────────────────────────────────────────────────
+// ——— Photos —————————————————————————————————————————————————————————————————————
 
 router.post('/:id/photos', validate(photoSchema), async (req: Request, res: Response) => {
   try {
@@ -181,7 +193,7 @@ router.delete('/:id/photos/:photoId', async (req: Request, res: Response) => {
   }
 });
 
-// ─── Documents ────────────────────────────────────────────────────────────────
+// ——— Documents ———————————————————————————————————————————————————————————————————
 
 router.post('/:id/documents', validate(documentSchema), async (req: Request, res: Response) => {
   try {
