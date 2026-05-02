@@ -14,6 +14,39 @@ router.get('/summary', async (req: Request, res: Response) => {
   }
 });
 
+// Added Financial/Report Summary endpoint
+router.get('/report-summary', async (req: Request, res: Response) => {
+  try {
+    const contractorId = req.user!.contractor_id!;
+    const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+    
+    // Aggregate financial and operational reports in parallel
+    const [summary, revenue, leads] = await Promise.all([
+      dashboardService.getSummary(contractorId),
+      dashboardService.getRevenue(contractorId, year),
+      dashboardService.getLeads(contractorId),
+    ]);
+    
+    res.json({
+      data: { 
+        summary, 
+        revenue, 
+        leads,
+        // Financial focus
+        financials: {
+          total_revenue: summary.invoices.total_revenue,
+          outstanding_balance: summary.invoices.outstanding,
+          overdue_invoices: summary.invoices.overdue_count,
+          open_invoices: summary.invoices.open_count
+        }
+      },
+      message: 'Consolidated financial report summary fetched'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch report summary' });
+  }
+});
+
 router.get('/revenue', async (req: Request, res: Response) => {
   try {
     const year = req.query.year ? Number(req.query.year) : undefined;
