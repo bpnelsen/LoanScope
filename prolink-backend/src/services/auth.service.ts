@@ -30,10 +30,6 @@ export interface LoginResult {
 }
 
 export const authService = {
-  /**
-   * Registers a new contractor. Creates auth user, profile, and contractor record,
-   * then signs in to return a live session.
-   */
   async register(input: RegisterInput): Promise<AuthResult> {
     const { data: authData, error: createError } = await supabase.auth.admin.createUser({
       email: input.email,
@@ -42,13 +38,17 @@ export const authService = {
       user_metadata: { full_name: input.full_name },
     });
 
-    if (createError || !authData.user) {
-      throw new Error(createError?.message ?? 'Failed to create auth user');
+    if (createError) {
+      throw new Error(`Admin CreateUser Error: ${createError.message}`);
+    }
+    
+    if (!authData.user) {
+      console.error('Auth User Creation Data:', JSON.stringify(authData, null, 2));
+      throw new Error('Failed to create auth user: user data is null');
     }
 
     const userId = authData.user.id;
 
-    // Use upsert to handle re-registrations/graceful initialization
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .upsert({
@@ -62,12 +62,11 @@ export const authService = {
       .single();
 
     if (profileError || !profile) {
-      // Only delete if this is a new registration failure
+      console.error('Profile Error for User:', userId, profileError);
       await supabase.auth.admin.deleteUser(userId);
       throw new Error(profileError?.message ?? 'Failed to create profile');
     }
 
-    // Use upsert here as well
     const { data: contractor, error: contractorError } = await supabase
       .from('contractors')
       .upsert({
@@ -80,7 +79,7 @@ export const authService = {
       .single();
 
     if (contractorError || !contractor) {
-      // Only delete auth user if this is a clean failure
+      console.error('Contractor Error for User:', userId, contractorError);
       await supabase.auth.admin.deleteUser(userId);
       throw new Error(contractorError?.message ?? 'Failed to create contractor');
     }
@@ -106,9 +105,6 @@ export const authService = {
     };
   },
 
-  /**
-   * Authenticates a contractor with email/password and returns a session.
-   */
   async login(email: string, password: string): Promise<LoginResult> {
     const { data, error } = await supabaseAnon.auth.signInWithPassword({ email, password });
 
@@ -144,9 +140,6 @@ export const authService = {
     };
   },
 
-  /**
-   * Refreshes an expired access token using a refresh token.
-   */
   async refresh(refreshToken: string): Promise<AuthSession> {
     const { data, error } = await supabaseAnon.auth.refreshSession({ refresh_token: refreshToken });
 
@@ -162,9 +155,6 @@ export const authService = {
     };
   },
 
-  /**
-   * Returns the full profile + contractor record for the authenticated user.
-   */
   async me(userId: string): Promise<{ profile: Profile; contractor: Contractor | null }> {
     const { data: profile, error } = await supabase
       .from('profiles')
