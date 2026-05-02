@@ -42,8 +42,13 @@ export const authService = {
       user_metadata: { full_name: input.full_name },
     });
 
-    if (createError || !authData.user) {
-      throw new Error(createError?.message ?? 'Failed to create auth user');
+    if (createError) {
+      throw new Error(`Admin CreateUser Error: ${createError.message}`);
+    }
+    
+    if (!authData.user) {
+      console.error('Auth User Creation Data:', JSON.stringify(authData, null, 2));
+      throw new Error('Failed to create auth user: user data is null');
     }
 
     const userId = authData.user.id;
@@ -62,6 +67,7 @@ export const authService = {
       .single();
 
     if (profileError || !profile) {
+      console.error('Profile Error for User:', userId, profileError);
       // Only delete if this is a new registration failure
       await supabase.auth.admin.deleteUser(userId);
       throw new Error(profileError?.message ?? 'Failed to create profile');
@@ -80,6 +86,7 @@ export const authService = {
       .single();
 
     if (contractorError || !contractor) {
+      console.error('Contractor Error for User:', userId, contractorError);
       // Only delete auth user if this is a clean failure
       await supabase.auth.admin.deleteUser(userId);
       throw new Error(contractorError?.message ?? 'Failed to create contractor');
