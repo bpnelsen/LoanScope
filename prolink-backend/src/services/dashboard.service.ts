@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabase';
+import { Job, Client, Lead, Invoice, Payment, PaginatedResponse } from '../types';
 
 export interface DashboardSummary {
   jobs: { total: number; by_status: Record<string, number> };
@@ -9,6 +10,9 @@ export interface DashboardSummary {
     outstanding: number;
     overdue_count: number;
     open_count: number;
+    // New fields for reporting
+    revenue_this_month: number;
+    invoices_pending_count: number;
   };
 }
 
@@ -28,15 +32,15 @@ export const dashboardService = {
    * Returns a high-level summary of jobs, clients, leads, and invoice metrics.
    */
   async getSummary(contractorId: string): Promise<DashboardSummary> {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
     const [jobsRes, clientsRes, leadsRes, invoicesRes, paymentsRes] = await Promise.all([
       supabase.from('jobs').select('status').eq('contractor_id', contractorId),
       supabase.from('clients').select('id', { count: 'exact', head: true }).eq('contractor_id', contractorId),
       supabase.from('leads').select('status').eq('contractor_id', contractorId),
-      supabase.from('invoices').select('status, balance_due').eq('contractor_id', contractorId),
-      supabase
-        .from('payments')
-        .select('amount')
-        .eq('contractor_id', contractorId),
+      supabase.from('invoices').select('status, balance_due, total, issue_date').eq('contractor_id', contractorId),
+      supabase.from('payments').select('amount, paid_at').eq('contractor_id', contractorId),
     ]);
 
     // Jobs by status
@@ -51,14 +55,22 @@ export const dashboardService = {
       leadsByStatus[lead.status] = (leadsByStatus[lead.status] ?? 0) + 1;
     }
 
-    // Invoice metrics
+    // Financial calculations
     const allInvoices = invoicesRes.data ?? [];
-    const totalRevenue = (paymentsRes.data ?? []).reduce((sum, p) => sum + p.amount, 0);
+    const allPayments = paymentsRes.data ?? [];
+    
+    const totalRevenue = allPayments.reduce((sum, p) => sum + p.amount, 0);
+    const revenueThisMonth = allPayments
+      .filter(p => new Date(p.paid_at) >= new Date(startOfMonth))
+      .reduce((sum, p) => sum + p.amount, 0);
+    
     const outstanding = allInvoices
       .filter((inv) => !['paid', 'cancelled', 'draft'].includes(inv.status))
       .reduce((sum, inv) => sum + (inv.balance_due ?? 0), 0);
+
     const overdueCount = allInvoices.filter((inv) => inv.status === 'overdue').length;
     const openCount = allInvoices.filter((inv) => ['sent', 'viewed', 'partially_paid'].includes(inv.status)).length;
+    const pendingCount = allInvoices.filter((inv) => inv.status === 'draft').length;
 
     return {
       jobs: { total: jobsRes.data?.length ?? 0, by_status: jobsByStatus },
@@ -66,9 +78,11 @@ export const dashboardService = {
       leads: { total: leadsRes.data?.length ?? 0, by_status: leadsByStatus },
       invoices: {
         total_revenue: Math.round(totalRevenue * 100) / 100,
+        revenue_this_month: Math.round(revenueThisMonth * 100) / 100,
         outstanding: Math.round(outstanding * 100) / 100,
         overdue_count: overdueCount,
         open_count: openCount,
+        invoices_pending_count: pendingCount,
       },
     };
   },
@@ -92,8 +106,6 @@ export const dashboardService = {
     if (error) throw new Error(error.message);
 
     const monthlyMap: Record<string, { revenue: number; payment_count: number }> = {};
-
-    // Initialize all 12 months
     for (let m = 1; m <= 12; m++) {
       const key = `${targetYear}-${String(m).padStart(2, '0')}`;
       monthlyMap[key] = { revenue: 0, payment_count: 0 };
