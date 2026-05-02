@@ -68,14 +68,13 @@ export const authService = {
     }
 
     const { data: contractor, error: contractorError } = await supabase
-      .from('pl_contractors')
+      .from('contractors')
       .upsert({
-        id: userId, // Assuming id matches userId/profile_id based on schema context
         profile_id: userId,
         business_name: input.business_name,
         business_type: input.business_type ?? null,
         status: 'pending',
-      }, { onConflict: 'id' })
+      }, { onConflict: 'profile_id' })
       .select()
       .single();
 
@@ -124,7 +123,7 @@ export const authService = {
     }
 
     const { data: contractor } = await supabase
-      .from('pl_contractors')
+      .from('contractors')
       .select('*')
       .eq('profile_id', data.user.id)
       .single();
@@ -168,7 +167,7 @@ export const authService = {
     }
 
     const { data: contractor } = await supabase
-      .from('pl_contractors')
+      .from('contractors')
       .select('*')
       .eq('profile_id', userId)
       .single();
